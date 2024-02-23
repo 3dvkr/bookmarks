@@ -18,7 +18,6 @@ app.get('/', (req, res) => {
 
 app.get('/github/callback', async (req, res) => {
 	const requestToken = req.query.code
-
 	const resp = await fetch(
 		`https://github.com/login/oauth/access_token?client_id=${clientID}&client_secret=${clientSecret}&code=${requestToken}`,
 		{
@@ -28,9 +27,8 @@ app.get('/github/callback', async (req, res) => {
 			},
 		}
 	)
-
 	const json = await resp.json()
-	access_token = json.access_token
+	access_token = json.access_token // fix
 	res.redirect('/success')
 })
 
@@ -41,14 +39,19 @@ app.get('/success', async function (req, res) {
 			Authorization: 'token ' + access_token,
 		},
 	})
-	const userData = await resp.json()	
-	const dbResp = await db
-	.insert(users)
-	.values({ githubId: userData.id, userName: userData.login })
-console.log({ dbResp })
-const allUsers = await db.select().from(users)
-console.log({ allUsers })
-res.render('pages/success', { userData })
+	const userData = await resp.json()
+
+	const existingUser = await db.query.users.findFirst({
+		where: (users, { eq }) => eq(users.githubId, userData.id),
+	})
+	console.log(`🎈 existingUser:`, existingUser)
+	if (!existingUser) {
+		await db
+			.insert(users)
+			.values({ githubId: userData.id, userName: userData.login })
+	}
+	// create session, other things with lucia
+	res.render('pages/success', { userData })
 })
 
 app.listen(4000, () => {
